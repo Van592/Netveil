@@ -1,0 +1,198 @@
+#!/bin/bash
+
+# Netveil: Secure Network Recon Toolkit for Linux
+# Author: [JustinV/ Netveil]
+# Version: 0.4
+
+set -e
+
+# Optional Global Flags
+FAST=""
+TIMING=""
+JSON=false
+LOGFILE="/var/log/netveil.log"
+
+# Parse global options (before commands)
+while [[ "$1" == -* ]]; do
+    case "$1" in
+        -F)
+            FAST="-F"
+            ;;
+        -T)
+            shift
+            TIMING="-T$1"
+            ;;
+        --json)
+            JSON=true
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+COMMAND=$1
+shift
+
+log() {
+    local msg="$1"
+    echo "[$(date +"%Y-%m-%d %H:%M:%S")] $msg" | tee -a "$LOGFILE"
+}
+
+output() {
+    local msg="$1"
+    if $JSON; then
+        echo -n "{\"timestamp\": \"$(date +%FT%T)\", \"message\": \"$msg\"}" | tee -a "$LOGFILE"
+    else
+        log "$msg"
+    fi
+}
+
+banner() {
+    echo "Netveil - Secure Network Recon Toolkit"
+    echo "Usage: netveil [scan|stealth|whoami|monitor|trace|lookup|ports|devices|passive|--version]"
+    echo "Global Options:"
+    echo "  -F           Fast mode (fewer ports, faster)"
+    echo "  -T [0-5]     Nmap timing option (0=slow, 5=fast/aggressive)"
+    echo "  --json       Output in JSON format"
+}
+
+case "$COMMAND" in
+    scan)
+        output "Scanning LAN with nmap..."
+        sudo nmap -sn 192.168.1.0/24
+        ;;
+
+    whoami)
+        output "Showing device IP and MAC addresses..."
+        ip -brief address
+        ;;
+
+    stealth)
+        output "Running ARP scan for stealthy discovery..."
+        sudo arp-scan --localnet
+        ;;
+
+    monitor)
+        output "Live monitoring ARP table (Ctrl+C to stop)..."
+        trap "echo -e '\n[+] Stopped monitoring'; exit 0" SIGINT
+        PREV=$(mktemp)
+        arp -a > "$PREV"
+        while true; do
+            CURR=$(mktemp)
+            arp -a > "$CURR"
+            diff "$PREV" "$CURR" | grep '>' && echo "[+] New device detected!"
+            mv "$CURR" "$PREV"
+            sleep 5
+        done
+        ;;
+
+    trace)
+        read -p "Enter IP or domain to trace: " TARGET
+        output "Tracing route to $TARGET..."
+        traceroute "$TARGET"
+        ;;
+
+    lookup)
+        if [[ -z "$1" ]]; then
+            echo "Usage: netveil lookup [IP]"
+        else
+            if ! command -v whois &>/dev/null; then
+                echo "Install whois first: sudo apt install whois"
+            else
+                output "Looking up WHOIS info for $1"
+                whois "$1" | grep -Ei 'OrgName|CIDR|NetName|Country|abuse|desc'
+            fi
+        fi
+        ;;
+
+    ports)
+        TARGET="$1"
+        if [[ -z "$TARGET" ]]; then
+            echo "Usage: netveil ports [IP]"
+            exit 1
+        fi
+        CMD="sudo nmap -Pn $FAST $TIMING $TARGET"
+        output "Scanning ports on $TARGET with: $CMD"
+        eval $CMD
+        ;;
+
+    devices)
+        output "Scanning devices and showing vendor info (OUI)..."
+        sudo arp-scan --localnet | grep -E '^[0-9]' || echo "arp-scan not installed or failed"
+        ;;
+
+    passive)
+        output "Passive mode (monitoring wireless packets)"
+        if ! command -v tshark &>/dev/null; then
+            echo "tshark not found. Install: sudo apt install tshark"
+        else
+            sudo tshark -i wlan0 -Y "wlan.fc.type_subtype == 0x08" -T fields -e wlan.sa -e wlan.ssid
+        fi
+        ;;
+    identify)
+        TARGET="$1"
+        if [[ -z "$TARGET" ]]; then
+            echo "Usage: netveil identify [IP]"
+            exit 1
+        fi
+        output "Identifying $TARGET..."
+
+        # MAC + Vendor info
+        MAC=$(arp -n | grep "$TARGET" | awk '{print $3}')
+        VENDOR=$(sudo nmap -sP "$TARGET" | grep -i mac | cut -d ' ' -f 3-)
+
+        # Hostname
+        HOSTNAME=$(nslookup "$TARGET" 2>/dev/null | awk -F' = ' '/name/ {print $2}' | sed 's/\\.$//')
+
+        # Open ports
+        PORTS=$(sudo nmap -Pn -F "$TARGET" | grep ^[0-9] | awk '{print $1, $3, $4}')
+
+        echo "------------------------------------"
+        echo "IP Address : $TARGET"
+        echo "MAC Address: ${MAC:-Unknown}"
+        echo "Vendor     : ${VENDOR:-Unknown}"
+        echo "Hostname   : ${HOSTNAME:-Unknown}"
+        echo "Open Ports :"
+        echo "$PORTS"
+        echo "------------------------------------"
+        ;;
+    triangulate)
+        IFACE="wlan0mon"
+
+        output "Preparing to monitor signal strength (RSSI)..."
+
+        # Kill interfering processes
+        sudo airmon-ng check kill
+
+        # Enable monitor mode
+        sudo airmon-ng start wlan0 >/dev/null 2>&1
+
+        echo "[+] Listening for probe requests..."
+        echo "[Press Ctrl+C to stop]"
+        
+        # Start tshark to capture probe requests with RSSI
+        sudo tshark -i "$IFACE" -Y "wlan.fc.type_subtype == 0x04" -T fields \
+            -e frame.time -e wlan.sa -e radiotap.dbm_antsignal -e wlan.ssid
+
+        # On exit, disable monitor mode
+        trap "sudo airmon-ng stop $IFACE >/dev/null 2>&1; sudo service NetworkManager restart" SIGINT
+        ;;
+
+
+
+    --version)
+        echo "Netveil v0.4"
+        ;;
+
+    help|--help|-h|"")
+        banner
+        ;;
+
+    *)
+        echo "[!] Unknown command: $COMMAND"
+        banner
+        ;;
+esac

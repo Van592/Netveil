@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tagged Devices</title>
+    <style>
+        body { background-color: #1e1e1e; color: #fff; font-family: sans-serif; padding: 20px; }
+        a { color: #4db8ff; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border-bottom: 1px solid #444; }
+    </style>
+</head>
+<body>
+    <h1>Tagged Devices</h1>
+    <a href="/">← Back to Dashboard</a>
+    <table>
+        <tr><th>MAC Address</th><th>Name</th></tr>
+        {% for mac, name in tags.items() %}
+            <tr><td>{{ mac }}</td><td>{{ name }}</td></tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

@@ -1,0 +1,9 @@
+Package: netveil
+Version: 0.5
+Section: admin
+Priority: optional
+Architecture: all
+Maintainer: Justin Vansickle <justin@example.com>
+Depends: bash, nmap, arp-scan, whois, traceroute, tshark, aircrack-ng, iw, net-tools
+Description: Netveil - Secure Network Recon Toolkit
+ CLI tool to detect, identify, and locate unauthorized devices in secure networks like prisons.

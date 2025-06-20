@@ -1,0 +1,34 @@
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Run Netveil Command</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<div class="container mt-4">
+  <h2>Run Network Command</h2>
+  <form method="post">
+    <div class="mb-3">
+      <select name="predef_command" class="form-select">
+        <option value="scan">LAN Scan</option>
+        <option value="stealth">Stealth ARP Scan</option>
+        <option value="monitor">Monitor ARP Table</option>
+        <option value="devices">Device Scan</option>
+        <option value="triangulate">Triangulate Device</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Run</button>
+    <a href="/" class="btn btn-secondary">Back</a>
+  </form>
+  {% if output %}
+  <h4 class="mt-4">Output:</h4>
+  <pre class="bg-light p-2 border">{{ output }}</pre>
+  {% endif %}
+</div>
+</body>
+</html>
+```

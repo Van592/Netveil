@@ -1,0 +1,10 @@
+#!/bin/bash
+# Create log file if missing
+touch /var/log/netveil.log
+
+# Assign ownership to whoever installed it (likely the admin user)
+INSTALL_USER=$(logname)
+
+chown "$INSTALL_USER":"$INSTALL_USER" /var/log/netveil.log
+chmod 664 /var/log/netveil.log
+chmod +x /usr/local/bin/netveil
